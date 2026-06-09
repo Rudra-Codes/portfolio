@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rudra Chitkara | Coder Portfolio</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;600;700&family=VT323&display=swap" rel="stylesheet">
+</head>
+<body>
+    <canvas id="matrix-canvas"></canvas>
+    <div class="scanlines"></div>
+    <div class="terminal-container">
+        
+        <!-- Header -->
+        <header class="terminal-header">
+            <div class="window-controls">
+                <span class="control close"></span>
+                <span class="control minimize"></span>
+                <span class="control maximize"></span>
+            </div>
+            <div class="window-title">rudra@creeper:~</div>
+        </header>
+
+        <!-- Terminal Content -->
+        <main class="terminal-body" id="terminal-body">
+            
+            <div id="welcome-message" class="output">
+                <h1 class="creeper-title">Welcome to the Creeper Terminal</h1>
+                <p>Type <span class="cmd">help</span> to see the list of available commands.</p>
+            </div>
+
+            <!-- Terminal History (commands executed go here) -->
+            <div id="terminal-history"></div>
+
+            <!-- Active Input Line -->
+            <div class="input-line active" id="input-line">
+                <span class="user">rudra@creeper</span>:<span class="path">~</span>$ 
+                <input type="text" id="cmd-input" autofocus autocomplete="off" spellcheck="false">
+            </div>
+            
+        </main>
+    </div>
+
+    <!-- Hidden Output Templates -->
+    <div id="templates" style="display: none;">
+        
+        <div id="tpl-about">
+            <div class="output">
+                <h1 class="creeper-title">RUDRA CHITKARA</h1>
+                <h2>[____________]</h2>
+                <p class="summary">[____________________________________________________________________________________________________]</p>
+                <div class="social-links">
+                    <p>GitHub: [______________]</p>
+                    <p>LinkedIn: [______________]</p>
+                    <p>Twitter: [______________]</p>
+                    <p>Email: [______________]</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="tpl-skills">
+            <div class="output">
+                <h3>> WHAT I DO</h3>
+                <p>[__________________________________________________]</p>
+                
+                <div class="skills-grid">
+                    <div class="skill-category">
+                        <h4>FRONTEND</h4>
+                        <ul>
+                            <li>[________]</li>
+                            <li>[________]</li>
+                            <li>[________]</li>
+                        </ul>
+                    </div>
+                    <div class="skill-category">
+                        <h4>BACKEND</h4>
+                        <ul>
+                            <li>[________]</li>
+                            <li>[________]</li>
+                            <li>[________]</li>
+                        </ul>
+                    </div>
+                    <div class="skill-category">
+                        <h4>TOOLS</h4>
+                        <ul>
+                            <li>[________]</li>
+                            <li>[________]</li>
+                            <li>[________]</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tpl-education">
+            <div class="output">
+                <h3>> EDUCATION</h3>
+                <div class="timeline-item">
+                    <h4>[____________________]</h4>
+                    <span class="timeline-date">[____________] - [____________]</span>
+                    <p class="timeline-subtitle">[____________________]</p>
+                    <ul>
+                        <li>[________________________________________]</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div id="tpl-experience">
+            <div class="output">
+                <h3>> WORK EXPERIENCE</h3>
+                <div class="timeline-item">
+                    <h4>[____________________] @ [____________________]</h4>
+                    <span class="timeline-date">[____________] - [____________]</span>
+                    <ul>
+                        <li>[________________________________________]</li>
+                        <li>[________________________________________]</li>
+                    </ul>
+                </div>
+                <div class="timeline-item">
+                    <h4>[____________________] @ [____________________]</h4>
+                    <span class="timeline-date">[____________] - [____________]</span>
+                    <ul>
+                        <li>[________________________________________]</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div id="tpl-projects">
+            <div class="output">
+                <h3>> BIG PROJECTS</h3>
+                <div class="projects-grid">
+                    <div class="project-card">
+                        <h4>[____________________]</h4>
+                        <p>[________________________________________]</p>
+                        <a href="#" class="creeper-btn">[VISIT WEBSITE]</a>
+                    </div>
+                    <div class="project-card">
+                        <h4>[____________________]</h4>
+                        <p>[________________________________________]</p>
+                        <a href="#" class="creeper-btn">[VISIT WEBSITE]</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tpl-achievements">
+            <div class="output">
+                <h3>> ACHIEVEMENTS & CERTIFICATIONS</h3>
+                <div class="achievements-list">
+                    <div class="achievement">
+                        <h4>[____________________]</h4>
+                        <p>[________________________________________]</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tpl-contact">
+            <div class="output blink-output">
+                <h3>> CONTACT ME</h3>
+                <p>Inbox is open for all. Drop a message!</p>
+                <p>Phone: [______________]</p>
+                <p>Email: [______________]</p>
+            </div>
+        </div>
+
+        <div id="tpl-help">
+            <div class="output">
+                <h3>> AVAILABLE COMMANDS</h3>
+                <ul>
+                    <li><span class="cmd">cat about.txt</span> - View information about me</li>
+                    <li><span class="cmd">./show_skills.sh</span> - See my technical skills</li>
+                    <li><span class="cmd">grep "education" resume.md</span> - Check my educational background</li>
+                    <li><span class="cmd">ls -la /work_experience</span> - View my work history</li>
+                    <li><span class="cmd">docker ps -a | grep "projects"</span> - Look at my projects</li>
+                    <li><span class="cmd">cat trophies.json</span> - View my achievements</li>
+                    <li><span class="cmd">ping contact.rudra</span> - Get my contact details</li>
+                    <li><span class="cmd">clear</span> - Clear the terminal screen</li>
+                    <li><span class="cmd">help</span> - Show this help menu</li>
+                </ul>
+            </div>
+        </div>
+
+        <div id="tpl-error">
+            <div class="output">
+                <p style="color: #ff5555;">bash: <span class="error-cmd"></span>: command not found</p>
+                <p>Type <span class="cmd">help</span> to see the list of available commands.</p>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
