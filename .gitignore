@@ -27,3 +27,5 @@ public/profile.json
 public/blogs.json
 
 .env
+.vercel
+.vercelignore

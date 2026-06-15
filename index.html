@@ -1,17 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rudra Chitkara | Coder Portfolio</title>
+    <link rel="icon" type="image/png" href="assets/images/chitkara.svg">
     <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;600;700&family=VT323&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;600;700&family=VT323&display=swap"
+        rel="stylesheet">
 </head>
+
 <body>
     <canvas id="matrix-canvas"></canvas>
     <div class="scanlines"></div>
     <div class="terminal-container">
-        
+
         <!-- Header -->
         <header class="terminal-header">
             <div class="window-controls">
@@ -19,37 +23,49 @@
                 <span class="control minimize"></span>
                 <span class="control maximize"></span>
             </div>
-            <div class="window-title">rudra@creeper:~</div>
+            <div class="window-title">@Rudra Creeper:~</div>
         </header>
 
         <!-- Terminal Content -->
         <main class="terminal-body" id="terminal-body">
-            
-            <div id="welcome-message" class="output">
-                <h1 class="creeper-title">Welcome to the Creeper Terminal</h1>
-                <p>Type <span class="cmd">help</span> to see the list of available commands.</p>
-            </div>
+
+            <div id="welcome-message" class="output"></div>
 
             <!-- Terminal History (commands executed go here) -->
             <div id="terminal-history"></div>
 
             <!-- Active Input Line -->
-            <div class="input-line active" id="input-line">
-                <span class="user">rudra@creeper</span>:<span class="path">~</span>$ 
-                <input type="text" id="cmd-input" autofocus autocomplete="off" spellcheck="false">
+            <div class="prompt" id="input-line" style="display: none;">
+                <span id="prompt-text"><span class="user"></span>@RudraCreeper:<span class="path"></span>$</span>
+                <input type="text" class="cmd" id="cmd-input" autocomplete="off" spellcheck="false">
             </div>
-            
+
         </main>
     </div>
 
     <!-- Hidden Output Templates -->
+    <!-- This is just for future refernce how history is saved of input-line for me-->
+    <template id="prompt-template">
+        <div class="prompt">
+            <span><span class="user"></span>@RudraCreeper:<span class="path"></span>$</span>
+            <span class="cmd"></span>
+        </div>
+    </template>
+    <template id="ls-output-template">
+        <div>
+            <span class="output output-dir" id="ls-dirs"></span>
+            <span id="ls-files"></span>
+        </div>
+    </template>
     <div id="templates" style="display: none;">
-        
+
         <div id="tpl-about">
             <div class="output">
                 <h1 class="creeper-title">RUDRA CHITKARA</h1>
                 <h2>[____________]</h2>
-                <p class="summary">[____________________________________________________________________________________________________]</p>
+                <p class="summary">
+                    [____________________________________________________________________________________________________]
+                </p>
                 <div class="social-links">
                     <p>GitHub: [______________]</p>
                     <p>LinkedIn: [______________]</p>
@@ -63,7 +79,7 @@
             <div class="output">
                 <h3>> WHAT I DO</h3>
                 <p>[__________________________________________________]</p>
-                
+
                 <div class="skills-grid">
                     <div class="skill-category">
                         <h4>FRONTEND</h4>
@@ -166,33 +182,37 @@
                 <p>Email: [______________]</p>
             </div>
         </div>
-
-        <div id="tpl-help">
-            <div class="output">
-                <h3>> AVAILABLE COMMANDS</h3>
-                <ul>
-                    <li><span class="cmd">cat about.txt</span> - View information about me</li>
-                    <li><span class="cmd">./show_skills.sh</span> - See my technical skills</li>
-                    <li><span class="cmd">grep "education" resume.md</span> - Check my educational background</li>
-                    <li><span class="cmd">ls -la /work_experience</span> - View my work history</li>
-                    <li><span class="cmd">docker ps -a | grep "projects"</span> - Look at my projects</li>
-                    <li><span class="cmd">cat trophies.json</span> - View my achievements</li>
-                    <li><span class="cmd">ping contact.rudra</span> - Get my contact details</li>
-                    <li><span class="cmd">clear</span> - Clear the terminal screen</li>
-                    <li><span class="cmd">help</span> - Show this help menu</li>
-                </ul>
+        <template id="tpl-help">
+            <div>
+                <div class="output">
+                    <h3>> AVAILABLE COMMANDS</h3>
+                    <ul>
+                        <li><span class="cmd">cat about.txt</span> - View information about me</li>
+                        <li><span class="cmd">./show_skills.sh</span> - See my technical skills</li>
+                        <li><span class="cmd">grep "education" resume.md</span> - Check my educational background</li>
+                        <li><span class="cmd">ls -la /work_experience</span> - View my work history</li>
+                        <li><span class="cmd">docker ps -a | grep "projects"</span> - Look at my projects</li>
+                        <li><span class="cmd">cat trophies.json</span> - View my achievements</li>
+                        <li><span class="cmd">ping contact.rudra</span> - Get my contact details</li>
+                        <li><span class="cmd">rudra</span> - Launch the interactive AI bot</li>
+                        <li><span class="cmd">clear</span> - Clear the terminal screen</li>
+                        <li><span class="cmd">help</span> - Show this help menu</li>
+                    </ul>
+                </div>
             </div>
-        </div>
-
-        <div id="tpl-error">
-            <div class="output">
-                <p style="color: #ff5555;">bash: <span class="error-cmd"></span>: command not found</p>
-                <p>Type <span class="cmd">help</span> to see the list of available commands.</p>
+        </template>
+        <template id="tpl-error">
+            <div>
+                <div class="output">
+                    <p class="output-error  ">Rudra: <span class="error-cmd"></span>: command not found HEHE</p>
+                    <p>Type <span class="cmd">help</span> to see the list of available commands.</p>
+                </div>
             </div>
-        </div>
+        </template>
 
     </div>
 
     <script src="script.js"></script>
 </body>
+
 </html>
