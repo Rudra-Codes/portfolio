@@ -326,6 +326,8 @@ ul {
 .cmd {
     background: transparent;
     border: none;
+    padding: 0;
+    line-height: inherit;
     color: #FFFF55;
     font-family: var(--terminal-font);
     font-size: 1rem;

@@ -1,3 +1,6 @@
+import loginModule from './shells/login.js';
+import printCommands from './printCommands.js';
+
 document.addEventListener('DOMContentLoaded', () => {
     const inputField = document.getElementById('cmd-input');
     const terminalHistory = document.getElementById('terminal-history');
@@ -5,39 +8,39 @@ document.addEventListener('DOMContentLoaded', () => {
     const inputLine = document.getElementById('input-line');
     const welcomeMessage = document.getElementById('welcome-message');
     const promptText = document.getElementById('prompt-text');
+
     // Templates
     // const promptTemplate = document.getElementById('prompt-template');
     const lsOutputTemplate = document.getElementById('ls-output-template');
     const cmdNotFound = document.getElementById('tpl-error');
+    const helpTemplate = document.getElementById('tpl-help');
     let inRudraShell = false;
     let botEndpoint = '';
     let currUser = "user";
     let currentDirectory = "~/";
     let commandRunning = false;
+
+    const printCommand = new printCommands(terminalHistory);
+
+    const auth = new loginModule    ({
+        printCommand: printCommand,
+        hidePrompt: () => { promptText.style.display = 'none'; },
+        showPrompt: () => { promptText.style.display = ''; },
+        setInputType: (type) => { inputField.type = type; },
+        onLoginSuccess: (username) => {
+            currUser = username;
+            currentDirectory = "~/";
+            updateInputLine();
+            // window.updatePrompt();
+        }
+    });
+
     function updateInputLine(User = currUser, Directory = currentDirectory) {
         inputLine.querySelector(".user").textContent = User;
         inputLine.querySelector(".path").textContent = Directory;
     }
 
     // --- Boot Sequence Typing Animation ---
-    async function typeText(element, text, replacements = []) {
-        let currentText = '';
-        for (let i = 0; i < text.length; i++) {
-            currentText += text[i];
-            element.innerHTML = currentText + '<span class="cursor"></span>';
-            // Randomize typing speed for realism
-            const delay = 0;
-            await new Promise(r => setTimeout(r, delay));
-        }
-
-        let finalHTML = text;
-        for (let rep of replacements) {
-            finalHTML = finalHTML.replace(rep.word, rep.tag);
-        }
-        element.innerHTML = finalHTML;
-
-        await new Promise(r => setTimeout(r, 200));
-    }
 
     async function runBootSequence() {
         if (!welcomeMessage || !inputLine) return;
@@ -46,13 +49,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const h1 = document.createElement('h1');
         h1.className = 'terminal-title';
         welcomeMessage.appendChild(h1);
-        await typeText(h1, 'Welcome to the Rudra Creeper Terminal');
+        await printCommand.typeText(h1, 'Welcome to the Rudra Creeper Terminal');
 
         // Type the paragraph
         const p = document.createElement('p');
         welcomeMessage.appendChild(p);
-        await typeText(p, 'Type help to see the list of available commands.', [
-            { word: 'help', tag: '<span class="cmd">help</span>' }
+        await printCommand.typeText(p, 'Type help to see the list of available commands.', [
+            { word: 'help', tag: '<span class="cmd" style="margin-left: 0px;">help</span>' }
         ]);
 
         // Show input and focus
@@ -71,20 +74,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Map commands to template IDs
     const commands = {
-        'cat about.txt': 'tpl-about',
-        './show_skills.sh': 'tpl-skills',
-        'grep "education" resume.md': 'tpl-education',
-        'ls -la /work_experience': 'tpl-experience',
-        'docker ps -a | grep "projects"': 'tpl-projects',
-        'cat trophies.json': 'tpl-achievements',
-        'ping contact.rudra': 'tpl-contact',
-        'help': { call: runHelp, desc: "" },
-        'clear': { call: runClear, desc: "" },
-        'rudra': { call: enterRudraShell, desc: "" },
-        'ls': { call: runLs, desc: "" },
-        'cd': { call: runCd, desc: "" },
-        'pwd': { call: runPwd, desc: "" },
+        // 'cat about.txt': 'tpl-about',
+        // './show_skills.sh': 'tpl-skills',
+        // 'grep "education" resume.md': 'tpl-education',
+        // 'ls -la /work_experience': 'tpl-experience',
+        // 'docker ps -a | grep "projects"': 'tpl-projects',
+        // 'cat trophies.json': 'tpl-achievements',
+        // 'ping contact.rudra': 'tpl-contact',
+        'help': { call: runHelp, desc: "Show Legendary Help menu" },
+        'clear': { call: runClear, desc: "Clear this terminal screen, not your history :)" },
+        'rudra': { call: enterRudraShell, desc: "Launch the rudra AI bot if you want to know about me or anything" },
+        'ls': { call: runLs, desc: "Same as linux works, show items in current Directory" },
+        'cd': { call: runCd, desc: "Same as linux works, Change Directory" },
+        'pwd': { call: runPwd, desc: "Same as linux works, know current absolute path" },
+        'sudo': { call: runSudo, desc: "This one is special, used to interact with backend, you can use it to log in etc. See man for more info." },
     };
+    // const sudoCommands = {
+    //     'login': { call: runLogin, desc: "" }
+    // }
     const cmd_list = Object.keys(commands);
 
     const file_system = {
@@ -95,17 +102,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
         '~/projects/': {
             files: { 'IITI_BOT.txt': 'tpl-projects1' },
-            dir: [],
+            dir: []
+        },
+
+        '~/home/user/': {
+            files: { 'info.txt': 'id' },
+            dir: []
         }
     };
 
     function getAbsolutePath(relativePath) {
+        if (relativePath[0] === '~') {
+            return relativePath + (relativePath.slice(-1) === '/' ? '' : '/');
+        }
+        if (relativePath.slice(0, 2) === '..') {
+            relativePath = currentDirectory.substring(0, currentDirectory.lastIndexOf('/', currentDirectory.length - 2)) + relativePath.slice(2);
+            if (!relativePath) return currentDirectory;
+            return relativePath + (relativePath.slice(-1) === '/' ? '' : '/');
+        }
+        if (!relativePath) return currentDirectory;
         return currentDirectory + relativePath + (relativePath.slice(-1) === '/' ? '' : '/');
     }
 
     function runLs(args) {
         const path = args.length === 0 ? currentDirectory : getAbsolutePath(args[0]);
-        console.log(path);
+        // console.log(path);
         if (file_system[path]) {
             // Custom printing bcz it is differnt, if possible use alreay defined ones
             const output = lsOutputTemplate.content.cloneNode(true);
@@ -113,49 +134,77 @@ document.addEventListener('DOMContentLoaded', () => {
             output.getElementById('ls-files').textContent = Object.keys(file_system[path].files).join('\t');
             terminalHistory.appendChild(output);
         }
-        else printWarning(`Rudra was unable to find ${path}: No such file or directory`);
+        else printCommand.printWarning(`Rudra was unable to find ${path}: No such file or directory`);
     }
 
     function runCd(args) {
-        const path = args.length === 0 ? currentDirectory : getAbsolutePath(args[0]);
+        let path = args.length === 0 ? currentDirectory : getAbsolutePath(args[0]);
+        console.log(path);
         if (file_system[path]) {
             currentDirectory = path;
             updateInputLine();
         }
-        else printWarning(`Rudra was unable to find ${path}: No such file or directory`);
+        else printCommand.printWarning(`Rudra was unable to find ${path}: No such file or directory`);
     }
 
     function runPwd(args) {
-        printDir(currentDirectory);
+        printCommand.printDir(currentDirectory);
     }
 
     function runHelp(args) {
-        // have to document, baad mei karenge bc
-        if (args.length === 0) args = cmd_list;
-
+        let present = [];
+        let notPresent = [];
+        args.forEach(item => {
+            if (commands[item]) present.push(item);
+            else notPresent.push(item);
+        });
+        if (notPresent.length !== 0) printCommand.printError(notPresent.join(', ') + ` command${(notPresent.length > 1) ? 's' : ''} not found.`)
+        if (present.length === 0) present = cmd_list;
+        const template = helpTemplate.content.cloneNode(true);
+        template.querySelector('ul').innerHTML = present.map(item =>
+            `<li><span class="cmd">${item}</span> - ${commands[item].desc}</li>`
+        ).join('\n');
+        terminalHistory.appendChild(template);
     }
 
     function runClear(args) {
         terminalHistory.innerHTML = '';
     }
 
+    function runSudo(args) {
+        if (args.length === 0) {
+            printCommand.printError("sudo: missing command");
+            return;
+        }
+        const cmd = args[0];
+        if (cmd === 'login') {
+            auth.start();
+        } else if (sudoCommands[cmd]) {
+            sudoCommands[cmd].call(args.slice(1));
+        } else {
+            printCommand.printError(`sudo: ${cmd}: command not found`);
+        }
+    }
+
     window.updatePrompt = function () {
         if (inRudraShell) {
             document.getElementById('prompt-text').innerHTML = `<span class="bot-user" style="color: #ff5555;">rudra-ai@creeper-bot</span>:<span class="path" style="color: #ff5555;">${currentDirectory}</span>#`;
         } else {
-            document.getElementById('prompt-text').innerHTML = `<span class="user">rudra@creeper</span>:<span class="path">${currentDirectory}</span>$`;
+            document.getElementById('prompt-text').innerHTML = `<span class="user">${currUser}@creeper</span>:<span class="path">${currentDirectory}</span>$`;
         }
     };
     // updatePrompt();
 
-    function EchoCmd(cmdText) {
+    function EchoCmd(cmdText, showPromptText = true) {
 
         const cmdEcho = document.createElement('div');
         cmdEcho.className = 'prompt';
 
-        const promptClone = promptText.cloneNode(true);
-        promptClone.removeAttribute('id');
-        cmdEcho.appendChild(promptClone);
+        if (showPromptText) {
+            const promptClone = promptText.cloneNode(true);
+            promptClone.removeAttribute('id');
+            cmdEcho.appendChild(promptClone);
+        }
 
         const prompt = document.createElement('span');
         prompt.className = 'cmd';
@@ -165,6 +214,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     inputField.addEventListener('keydown', async function (e) {
+        if (e.ctrlKey && e.key.toLowerCase() === 'l') {
+            e.preventDefault();
+            runClear();
+        }
+
         if (e.ctrlKey && e.key.toLowerCase() === 'q') {
             if (inRudraShell) {
                 exitRudraShell();
@@ -175,6 +229,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Tab auto complete logiccc
         if (e.key === 'Tab') {
             e.preventDefault();
+            if (auth.active) return;
             // currentDirectory = "test";
             // updatePrompt();
             const input = this.value.trim();
@@ -222,10 +277,16 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         if (e.key === 'Enter' && !commandRunning) {
-            EchoCmd(this.value);
-            const cmdText = this.value.trim();
+            if (auth.active) EchoCmd(auth.isPasswordStep() ? '*'.repeat(this.value.length) : this.value, false);
+            else EchoCmd(this.value);
 
-            if (cmdText !== '') {
+            const cmdText = this.value.trim();
+            // Clear input
+            this.value = '';
+
+            if (auth.active) {
+                auth.handleInput(cmdText);
+            } else if (cmdText !== '') {
                 if (inRudraShell) {
                     await handleRudraQuery(cmdText);
                 } else {
@@ -242,8 +303,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 terminalHistory.appendChild(cmdEcho);
             }
 
-            // Clear input
-            this.value = '';
 
             // Auto scroll to bottom
             terminalBody.scrollTop = terminalBody.scrollHeight;
@@ -375,107 +434,13 @@ document.addEventListener('DOMContentLoaded', () => {
         terminalBody.scrollTop = terminalBody.scrollHeight;
     }
 
-    // --- Global Terminal Display Functions ---
-    // Use these functions to display custom text or API responses in the terminal
-
-    // 1. Display standard text
-    window.printText = function (input) {
-        const outputWrapper = document.createElement('div');
-        outputWrapper.className = 'output';
-        // outputWrapper.innerHTML = `<p>${escapeHTML(text)}</p>`;
-        const text = document.createElement('span');
-        text.textContent = input;
-        outputWrapper.appendChild(text);
-        terminalHistory.appendChild(outputWrapper);
-        // terminalBody.scrollTop = terminalBody.scrollHeight;
-    };
-    window.printDir = function (input) {
-        const outputWrapper = document.createElement('div');
-        outputWrapper.className = 'output output-dir';
-        // outputWrapper.innerHTML = `<p>${escapeHTML(text)}</p>`;
-        const text = document.createElement('span');
-        text.textContent = input;
-        outputWrapper.appendChild(text);
-        terminalHistory.appendChild(outputWrapper);
-        // terminalBody.scrollTop = terminalBody.scrollHeight;
-    };
-
-    // 2. Display success text (green)
-    window.printSuccess = function (text) {
-        const outputWrapper = document.createElement('div');
-        outputWrapper.className = 'output output-success';
-        outputWrapper.innerHTML = `<p>[SUCCESS] ${escapeHTML(text)}</p>`;
-        terminalHistory.appendChild(outputWrapper);
-        // terminalBody.scrollTop = terminalBody.scrollHeight;
-    };
-
-    // 3. Display error text (red)
-    window.printError = function (text) {
-        const outputWrapper = document.createElement('div');
-        outputWrapper.className = 'output output-error';
-        outputWrapper.innerHTML = `<p>[ERROR] ${escapeHTML(text)}</p>`;
-        terminalHistory.appendChild(outputWrapper);
-        // terminalBody.scrollTop = terminalBody.scrollHeight;
-    };
-
-    // 4. Display warning text (yellow)
-    window.printWarning = function (input) {
-        const outputWrapper = document.createElement('div');
-        outputWrapper.className = 'output output-warning';
-        const text = document.createElement('span');
-        text.textContent = input;
-        outputWrapper.appendChild(text);
-        terminalHistory.appendChild(outputWrapper);
-        // terminalBody.scrollTop = terminalBody.scrollHeight;
-    };
-
-    // 5. Display text with the typewriter effect
-    window.printTyping = async function (text) {
-        const outputWrapper = document.createElement('div');
-        outputWrapper.className = 'output output-typing';
-        const p = document.createElement('p');
-        outputWrapper.appendChild(p);
-        terminalHistory.appendChild(outputWrapper);
-
-        await typeText(p, text);
-        terminalBody.scrollTop = terminalBody.scrollHeight;
-    };
-
-    // 6. Display raw HTML (useful for tables or custom layouts)
-    window.printHTML = function (htmlString) {
-        const outputWrapper = document.createElement('div');
-        outputWrapper.className = 'output output-html';
-        outputWrapper.innerHTML = htmlString;
-        terminalHistory.appendChild(outputWrapper);
-        terminalBody.scrollTop = terminalBody.scrollHeight;
-    };
-
-    // 7. Display text in an ASCII border box
-    window.printBoxed = function (text) {
-        const lines = text.split('\n');
-        const maxLength = Math.max(...lines.map(l => l.length));
-        const border = '+' + '-'.repeat(maxLength + 2) + '+';
-
-        let boxedText = border + '\n';
-        for (const line of lines) {
-            boxedText += '| ' + line.padEnd(maxLength, ' ') + ' |\n';
-        }
-        boxedText += border;
-
-        const outputWrapper = document.createElement('div');
-        outputWrapper.className = 'output output-boxed';
-        outputWrapper.innerHTML = `<pre>${escapeHTML(boxedText)}</pre>`;
-        terminalHistory.appendChild(outputWrapper);
-        terminalBody.scrollTop = terminalBody.scrollHeight;
-    };
-
     async function executeCommand(cmdText) {
         // assuming phele hi history mei echo kar diya.
         // Hide terminal start commands to feel like terminal
         promptText.style.visibility = 'hidden';
         commandRunning = true;
         // 1. Parse commands
-        [command, ...ergs] = cmdText.split(/\s+/);
+        let [command, ...ergs] = cmdText.split(/\s+/);
         // 2. Process command
         if (typeof commands[command]?.call === 'function') commands[command].call(ergs);
         else {
@@ -537,19 +502,6 @@ document.addEventListener('DOMContentLoaded', () => {
         //     outputWrapper.innerHTML = outputContent;
         //     terminalHistory.appendChild(outputWrapper);
         // }
-    }
-
-    // Helper to prevent XSS if they type HTML
-    function escapeHTML(str) {
-        return str.replace(/[&<>'"]/g,
-            tag => ({
-                '&': '&amp;',
-                '<': '&lt;',
-                '>': '&gt;',
-                "'": '&#39;',
-                '"': '&quot;'
-            }[tag] || tag)
-        );
     }
 
     // --- Combined Matrix Rain & Particle Trail Animation ---
