@@ -3,3 +3,4 @@ uvicorn
 # cryptography
 python-dotenv
 python-jose[cryptography]
+# httpx

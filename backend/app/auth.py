@@ -35,7 +35,7 @@ access_exception = HTTPException(
 )
 
 
-def verify_root(signature:bytes, message:bytes) -> bool:
+def verify_root(message:bytes, signature:bytes) -> bool:
     try:
         PUBLIC_KEY.verify(signature, message)
         return True
@@ -57,9 +57,10 @@ def get_current_user(security_scopes: SecurityScopes, token: str = Depends(oauth
         for credential in credentials:
             if (payload.get(credential) is None):
                 raise credentials_exception
-        for scope in security_scopes.scopes:
-            if scope not in token_scopes:
-                raise access_exception
+        if 'root' not in token_scopes:
+            for scope in security_scopes.scopes:
+                if scope not in token_scopes:
+                    raise access_exception
         return payload
     except JWTError:
         raise credentials_exception

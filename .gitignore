@@ -29,6 +29,7 @@ public/blogs.json
 .env
 .vercel
 .vercelignore
-test*
+# test*
 private_key*
 public_key*
+__pycache__

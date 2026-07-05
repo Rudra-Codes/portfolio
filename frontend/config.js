@@ -1,0 +1,1 @@
+export const loginAPI = {endpoint: 'https://endpoint.rudrachitkara.dev/login', timeout: 5000};

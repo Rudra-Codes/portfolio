@@ -19,21 +19,17 @@ document.addEventListener('DOMContentLoaded', () => {
     let currUser = "user";
     let currentDirectory = "~/";
     let commandRunning = false;
+    let activeSession = null;
 
-    const printCommand = new printCommands(terminalHistory);
-
-    const auth = new loginModule    ({
-        printCommand: printCommand,
+    const printCommand = new printCommands(terminalHistory, promptText);
+    const terminalCallbacks = {
+        printCommand,
+        updateInputLine,
         hidePrompt: () => { promptText.style.display = 'none'; },
         showPrompt: () => { promptText.style.display = ''; },
         setInputType: (type) => { inputField.type = type; },
-        onLoginSuccess: (username) => {
-            currUser = username;
-            currentDirectory = "~/";
-            updateInputLine();
-            // window.updatePrompt();
-        }
-    });
+        setActiveSession: (session) => activeSession = session
+    };
 
     function updateInputLine(User = currUser, Directory = currentDirectory) {
         inputLine.querySelector(".user").textContent = User;
@@ -50,6 +46,13 @@ document.addEventListener('DOMContentLoaded', () => {
         h1.className = 'terminal-title';
         welcomeMessage.appendChild(h1);
         await printCommand.typeText(h1, 'Welcome to the Rudra Creeper Terminal');
+
+        // Type the feedback message
+        const pFeedback = document.createElement('p');
+        welcomeMessage.appendChild(pFeedback);
+        await printCommand.typeText(pFeedback, 'Backend is self hosted at rudra home server, for any feedback or bug report, please mail at feedback@rudrachitkara.dev', [
+            { word: 'feedback@rudrachitkara.dev', tag: '<a href="mailto:feedback@rudrachitkara.dev" style="color: #e3ff71ff; text-decoration: underline;">feedback@rudrachitkara.dev</a>' }
+        ]);
 
         // Type the paragraph
         const p = document.createElement('p');
@@ -89,9 +92,10 @@ document.addEventListener('DOMContentLoaded', () => {
         'pwd': { call: runPwd, desc: "Same as linux works, know current absolute path" },
         'sudo': { call: runSudo, desc: "This one is special, used to interact with backend, you can use it to log in etc. See man for more info." },
     };
-    // const sudoCommands = {
-    //     'login': { call: runLogin, desc: "" }
-    // }
+    const sudoCommands = {
+        'login': new loginModule(terminalCallbacks),
+        // 'get-info': { call: runGetInfo }
+    }
     const cmd_list = Object.keys(commands);
 
     const file_system = {
@@ -177,14 +181,14 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         const cmd = args[0];
-        if (cmd === 'login') {
-            auth.start();
-        } else if (sudoCommands[cmd]) {
-            sudoCommands[cmd].call(args.slice(1));
+        if (sudoCommands[cmd]) {
+            sudoCommands[cmd].call();
         } else {
             printCommand.printError(`sudo: ${cmd}: command not found`);
         }
     }
+
+    // function runGetInfo()
 
     window.updatePrompt = function () {
         if (inRudraShell) {
@@ -195,28 +199,19 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     // updatePrompt();
 
-    function EchoCmd(cmdText, showPromptText = true) {
-
-        const cmdEcho = document.createElement('div');
-        cmdEcho.className = 'prompt';
-
-        if (showPromptText) {
-            const promptClone = promptText.cloneNode(true);
-            promptClone.removeAttribute('id');
-            cmdEcho.appendChild(promptClone);
-        }
-
-        const prompt = document.createElement('span');
-        prompt.className = 'cmd';
-        prompt.textContent = cmdText;
-        cmdEcho.appendChild(prompt);
-        terminalHistory.appendChild(cmdEcho);
-    }
 
     inputField.addEventListener('keydown', async function (e) {
         if (e.ctrlKey && e.key.toLowerCase() === 'l') {
             e.preventDefault();
             runClear();
+        }
+        if (e.ctrlKey && e.key.toLowerCase() === 'c') {
+            e.preventDefault();
+            if (activeSession) activeSession.exit();
+            else {
+                printCommand.EchoCmd(this.value.trim());
+                this.value = "";
+            }
         }
 
         if (e.ctrlKey && e.key.toLowerCase() === 'q') {
@@ -229,7 +224,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Tab auto complete logiccc
         if (e.key === 'Tab') {
             e.preventDefault();
-            if (auth.active) return;
+            if (activeSession) return;
             // currentDirectory = "test";
             // updatePrompt();
             const input = this.value.trim();
@@ -262,7 +257,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Yha par usse exact match nhi mila but bada mila so de do.
                     this.value = prefix;
                 } else {
-                    EchoCmd(input);
+                    printCommand.EchoCmd(input);
                     // Show available matches without echoing prompt
                     const outputWrapper = document.createElement('div');
                     outputWrapper.className = 'output';
@@ -277,31 +272,29 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         if (e.key === 'Enter' && !commandRunning) {
-            if (auth.active) EchoCmd(auth.isPasswordStep() ? '*'.repeat(this.value.length) : this.value, false);
-            else EchoCmd(this.value);
-
             const cmdText = this.value.trim();
             // Clear input
             this.value = '';
+            if (activeSession) await activeSession.handleInput(cmdText);
+            else executeCommand(cmdText);
+            // printCommand.EchoCmd(cmdText);
+            // } else if (cmdText !== '') {
+            //     if (inRudraShell) {
+            //         await handleRudraQuery(cmdText);
+            //     } else {
+            //         executeCommand(cmdText);
+            //     }
+            // }
+            // else {
+            //     // Empty command
+            //     const cmdEcho = document.createElement('div');
+            //     cmdEcho.className = 'prompt';
+            //     const promptClone = promptText.cloneNode(true);
+            //     promptClone.removeAttribute('id');
+            //     cmdEcho.appendChild(promptClone);
+            //     terminalHistory.appendChild(cmdEcho);
+            // }
 
-            if (auth.active) {
-                auth.handleInput(cmdText);
-            } else if (cmdText !== '') {
-                if (inRudraShell) {
-                    await handleRudraQuery(cmdText);
-                } else {
-                    executeCommand(cmdText);
-                }
-            }
-            else {
-                // Empty command
-                const cmdEcho = document.createElement('div');
-                cmdEcho.className = 'prompt';
-                const promptClone = promptText.cloneNode(true);
-                promptClone.removeAttribute('id');
-                cmdEcho.appendChild(promptClone);
-                terminalHistory.appendChild(cmdEcho);
-            }
 
 
             // Auto scroll to bottom
@@ -435,7 +428,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function executeCommand(cmdText) {
-        // assuming phele hi history mei echo kar diya.
+        printCommand.EchoCmd(cmdText);
+        if (cmdText === "") return;
         // Hide terminal start commands to feel like terminal
         promptText.style.visibility = 'hidden';
         commandRunning = true;

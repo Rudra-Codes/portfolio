@@ -2,8 +2,9 @@
 // Use these functions to display custom text or API responses in the terminal
 
 export default class printCommands {
-    constructor(historyElement) {
+    constructor(historyElement, promptText) {
         this.terminalHistory = historyElement;
+        this.promptText = promptText;
     }
     escapeHTML(str) {
         return str.replace(/[&<>'"]/g,
@@ -132,5 +133,23 @@ export default class printCommands {
         outputWrapper.innerHTML = `<pre>${this.escapeHTML(boxedText)}</pre>`;
         this.terminalHistory.appendChild(outputWrapper);
         // terminalBody.scrollTop = terminalBody.scrollHeight;
+    }
+
+    EchoCmd(cmdText, showPromptText = true) {
+
+        const cmdEcho = document.createElement('div');
+        cmdEcho.className = 'prompt';
+
+        if (showPromptText) {
+            const promptClone = this.promptText.cloneNode(true);
+            promptClone.removeAttribute('id');
+            cmdEcho.appendChild(promptClone);
+        }
+
+        const prompt = document.createElement('span');
+        prompt.className = 'cmd';
+        prompt.textContent = cmdText;
+        cmdEcho.appendChild(prompt);
+        this.terminalHistory.appendChild(cmdEcho);
     }
 }
