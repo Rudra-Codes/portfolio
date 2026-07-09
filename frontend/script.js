@@ -1,5 +1,7 @@
 import loginModule from './shells/login.js';
 import printCommands from './printCommands.js';
+import { resumeLink } from './config.js';
+import CommandHistory from './chatHistory.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     const inputField = document.getElementById('cmd-input');
@@ -17,11 +19,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let inRudraShell = false;
     let botEndpoint = '';
     let currUser = "user";
-    let currentDirectory = "~/";
+    let currentDirectory = "/";
     let commandRunning = false;
     let activeSession = null;
 
     const printCommand = new printCommands(terminalHistory, promptText);
+    const commandHistory = new CommandHistory(50);
     const terminalCallbacks = {
         printCommand,
         updateInputLine,
@@ -50,8 +53,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // Type the feedback message
         const pFeedback = document.createElement('p');
         welcomeMessage.appendChild(pFeedback);
-        await printCommand.typeText(pFeedback, 'Backend is self hosted at rudra home server, for any feedback or bug report, please mail at feedback@rudrachitkara.dev', [
-            { word: 'feedback@rudrachitkara.dev', tag: '<a href="mailto:feedback@rudrachitkara.dev" style="color: #e3ff71ff; text-decoration: underline;">feedback@rudrachitkara.dev</a>' }
+        await printCommand.typeText(pFeedback, 'Backend is self hosted at rudra home server, for any feedback or bug report, please mail at feedback@rudrachitkara.dev. Use tab autocomplete to explore.', [
+            { word: 'feedback@rudrachitkara.dev', tag: '<a href="mailto:feedback@rudrachitkara.dev" style="color: #e3ff71ff; text-decoration: underline;">feedback@rudrachitkara.dev</a>' },
+            { word: 'tab', tag: '<span class="output-error">tab</span>' }
         ]);
 
         // Type the paragraph
@@ -75,7 +79,11 @@ document.addEventListener('DOMContentLoaded', () => {
         inputField.focus();
     });
 
-    // Map commands to template IDs
+    const sudoCommands = {
+        'login': new loginModule(terminalCallbacks),
+        // 'get-info': { call: runGetInfo }
+    }
+    // Commands jo chal sakti
     const commands = {
         // 'cat about.txt': 'tpl-about',
         // './show_skills.sh': 'tpl-skills',
@@ -90,33 +98,30 @@ document.addEventListener('DOMContentLoaded', () => {
         'ls': { call: runLs, desc: "Same as linux works, show items in current Directory" },
         'cd': { call: runCd, desc: "Same as linux works, Change Directory" },
         'pwd': { call: runPwd, desc: "Same as linux works, know current absolute path" },
-        'sudo': { call: runSudo, desc: "This one is special, used to interact with backend, you can use it to log in etc. See man for more info." },
+        'about': { call: runAbout, desc: "To view my resume" },
+        'sudo': { call: runSudo, desc: "This one is special, used to interact with backend, before executing anything use sudo login. See man for more info.", subcommands: Object.keys(sudoCommands) },
     };
-    const sudoCommands = {
-        'login': new loginModule(terminalCallbacks),
-        // 'get-info': { call: runGetInfo }
-    }
     const cmd_list = Object.keys(commands);
 
     const file_system = {
-        '~/': {
+        '/': {
             files: { 'about.txt': 'tpl-about', 'contact.txt': 'tpl-contact' },
             dir: ["projects/"]
         },
 
-        '~/projects/': {
+        '/projects/': {
             files: { 'IITI_BOT.txt': 'tpl-projects1' },
             dir: []
         },
 
-        '~/home/user/': {
+        '/home/user/': {
             files: { 'info.txt': 'id' },
             dir: []
         }
     };
 
     function getAbsolutePath(relativePath) {
-        if (relativePath[0] === '~') {
+        if (relativePath[0] === '/') {
             return relativePath + (relativePath.slice(-1) === '/' ? '' : '/');
         }
         if (relativePath.slice(0, 2) === '..') {
@@ -143,7 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function runCd(args) {
         let path = args.length === 0 ? currentDirectory : getAbsolutePath(args[0]);
-        console.log(path);
+        // console.log(path);
         if (file_system[path]) {
             currentDirectory = path;
             updateInputLine();
@@ -188,6 +193,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function runAbout(args) {
+        printCommand.printText("This will open rudra's resume in new tab.");
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        printCommand.printSuccess("Opened rudra's Resume in new tab");
+        window.open(resumeLink, "_blank");
+    }
     // function runGetInfo()
 
     window.updatePrompt = function () {
@@ -222,40 +233,94 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         // Tab auto complete logiccc
+        if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            this.value = commandHistory.up();
+            return;
+        }
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            this.value = commandHistory.down();
+            return;
+        }
+
         if (e.key === 'Tab') {
             e.preventDefault();
             if (activeSession) return;
             // currentDirectory = "test";
             // updatePrompt();
-            const input = this.value.trim();
+            const input = this.value.trimStart();
 
-            if (!input) return;
+            // if (!input) return;
 
-            const matches = cmd_list.filter(cmd =>
-                cmd.startsWith(input)
-            );
+            let matches = [];
+            let prefixToComplete = "";
+            let replacementPrefix = "";
+
+            const lastSpaceIndex = input.lastIndexOf(' ');
+
+            if (lastSpaceIndex === -1) {
+                // Command completion
+                matches = cmd_list.filter(cmd => cmd.startsWith(input));
+                prefixToComplete = input;
+                replacementPrefix = "";
+            } else {
+                const commandPart = input.slice(0, lastSpaceIndex + 1);
+                const pathPart = input.slice(lastSpaceIndex + 1);
+                // pathPart = pathPart.trimStart();
+                let lastCommand = commandPart.trimEnd();
+                lastCommand = lastCommand.slice(lastCommand.lastIndexOf(' ') + 1);
+
+                if (commands[lastCommand]?.subcommands) {
+                    matches = commands[lastCommand].subcommands.filter(cmd => cmd.startsWith(pathPart));
+                    prefixToComplete = pathPart;
+                    replacementPrefix = commandPart;
+                }
+                else {
+                    // File path completion
+                    const lastSlashIndex = pathPart.lastIndexOf('/');
+                    let dirPart = '';
+                    prefixToComplete = pathPart;
+
+                    if (lastSlashIndex !== -1) {
+                        dirPart = pathPart.slice(0, lastSlashIndex + 1);
+                        prefixToComplete = pathPart.slice(lastSlashIndex + 1);
+                    }
+
+                    let absDirPath = getAbsolutePath(dirPart);
+                    // console.log(absDirPath);
+                    const dirContents = file_system[absDirPath];
+                    if (dirContents) {
+                        const availableItems = [
+                            ...Object.keys(dirContents.files || {}),
+                            ...(dirContents.dir || [])
+                        ];
+                        matches = availableItems.filter(item => item.startsWith(prefixToComplete));
+                    }
+                    replacementPrefix = commandPart + dirPart;
+                }
+            }
 
             if (matches.length === 1) {
                 // Single match
-                this.value = matches[0];
+                this.value = replacementPrefix + matches[0];
             }
             else if (matches.length > 1) {
-
                 // Find longest common prefix
-                let prefix = matches[0];
+                let commonPrefix = matches[0];
 
                 for (let i = 1; i < matches.length; i++) {
                     while (
-                        !matches[i].startsWith(prefix) &&
-                        prefix.length > 0
+                        !matches[i].startsWith(commonPrefix) &&
+                        commonPrefix.length > 0
                     ) {
-                        prefix = prefix.slice(0, -1);
+                        commonPrefix = commonPrefix.slice(0, -1);
                     }
                 }
 
-                if (prefix.length > input.length) {
+                if (commonPrefix.length > prefixToComplete.length) {
                     // Yha par usse exact match nhi mila but bada mila so de do.
-                    this.value = prefix;
+                    this.value = replacementPrefix + commonPrefix;
                 } else {
                     printCommand.EchoCmd(input);
                     // Show available matches without echoing prompt
@@ -275,6 +340,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const cmdText = this.value.trim();
             // Clear input
             this.value = '';
+            commandHistory.push(cmdText);
             if (activeSession) await activeSession.handleInput(cmdText);
             else executeCommand(cmdText);
             // printCommand.EchoCmd(cmdText);
@@ -431,12 +497,12 @@ document.addEventListener('DOMContentLoaded', () => {
         printCommand.EchoCmd(cmdText);
         if (cmdText === "") return;
         // Hide terminal start commands to feel like terminal
-        promptText.style.visibility = 'hidden';
+        terminalCallbacks.hidePrompt();
         commandRunning = true;
         // 1. Parse commands
         let [command, ...ergs] = cmdText.split(/\s+/);
         // 2. Process command
-        if (typeof commands[command]?.call === 'function') commands[command].call(ergs);
+        if (typeof commands[command]?.call === 'function') await commands[command].call(ergs);
         else {
             const error = cmdNotFound.content.cloneNode(true);
             error.querySelector('.error-cmd').textContent = command;
@@ -444,7 +510,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         // After execution unhide it.
         terminalBody.scrollTop = terminalBody.scrollHeight;
-        promptText.style.visibility = 'visible';
+        if (!activeSession) terminalCallbacks.showPrompt();
         commandRunning = false;
         // if (cmdText.startsWith('cd ')) {
         //     const newDir = cmdText.substring(3).trim();

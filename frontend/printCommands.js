@@ -43,7 +43,9 @@ export default class printCommands {
     printSuccess(input) {
         const outputWrapper = document.createElement('div');
         outputWrapper.className = 'output output-success';
-        outputWrapper.innerHTML = `<p>[SUCCESS] ${this.escapeHTML(input)}</p>`;
+        const text = document.createElement('p');
+        text.textContent = `[SUCCESS] ${input}`;
+        outputWrapper.appendChild(text);
         this.terminalHistory.appendChild(outputWrapper);
         // terminalBody.scrollTop = terminalBody.scrollHeight;
     }
