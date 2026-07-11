@@ -11,6 +11,8 @@ class Database:
             conninfo=f"host=localhost port=5432 dbname=myusers user=myterminal password={os.getenv('POSTGRES_PASSWORD')}",
             min_size=min,
             max_size=max,
+            max_lifetime=3600, # Create new connections as cloudfare tcp is sasta
+            check=ConnectionPool.check_connection,
         )
         self.ALLOWED_TABLES = ['identity', 'pending_users']
     
