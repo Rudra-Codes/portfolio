@@ -4,3 +4,6 @@ uvicorn
 python-dotenv
 python-jose[cryptography]
 # httpx
+psycopg[binary]
+psycopg_pool
+bcrypt

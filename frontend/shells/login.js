@@ -1,32 +1,59 @@
 import shell from "../shellTemplate.js";
-import { loginAPI } from "../config.js";
+import { backendAPI } from "../config.js";
 async function check(username, password) {
     if (username === 'rudra') {
-        const binaryDer = Uint8Array.from(atob(password.trim()), c => c.charCodeAt(0));
-        const privateKey = await crypto.subtle.importKey(
-            "pkcs8",
-            binaryDer,
-            { name: "Ed25519" },
-            false,
-            ["sign"]
-        );
+        let sigBase64;
+        try {
+            const binaryDer = Uint8Array.from(atob(password.trim()), c => c.charCodeAt(0));
+            const privateKey = await crypto.subtle.importKey(
+                "pkcs8",
+                binaryDer,
+                { name: "Ed25519" },
+                false,
+                ["sign"]
+            );
 
-        const signatureBuffer = await crypto.subtle.sign(
-            "Ed25519",
-            privateKey,
-            new TextEncoder().encode(username)
-        );
-        const sigBase64 = btoa(String.fromCharCode(...new Uint8Array(signatureBuffer)));
+            const signatureBuffer = await crypto.subtle.sign(
+                "Ed25519",
+                privateKey,
+                new TextEncoder().encode(username)
+            );
+            sigBase64 = btoa(String.fromCharCode(...new Uint8Array(signatureBuffer)));
+        } catch (err){
+            console.log(err);
+            return {detail: 'Wrong format of password, cannot parse it :('};
+        }
+        try {
+            const response = await fetch(`${backendAPI.endpoint}/login/root`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ username, signature: sigBase64 }),
+                signal: AbortSignal.timeout(backendAPI.timeout)
+            });
+            return await response.json();
+        } catch (err) {
+            console.log(err);
+            return {detail: 'Something went wrong on backend side. Please try again.'};
+        }
+    }
 
-        return await fetch(`${loginAPI.endpoint}/root`, {
+    try {
+        const response = await fetch(`${backendAPI.endpoint}/login/user`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
             },
-            body: JSON.stringify({ username, signature: sigBase64 }),
-            signal: AbortSignal.timeout(loginAPI.timeout)
-        })
+            body: JSON.stringify({ username, password }),
+            signal: AbortSignal.timeout(backendAPI.timeout)
+        });
+        return await response.json();
+    } catch (err) {
+        console.log(err);
+        return {detail: 'Something went wrong on backend side. Please try again.'};
     }
+
 }
 
 
@@ -34,10 +61,10 @@ async function check(username, password) {
 export default class loginModule extends shell {
     constructor(callbacks) {
         super(callbacks);
-        this.AuthToken = null;
+        this.desc = 'Log in to your account.';
     }
 
-    call() {
+    call(args) {
         this.cb.setActiveSession(this);
         this.step = 0;
         this.tries = 0;
@@ -65,29 +92,32 @@ export default class loginModule extends shell {
             else this.cb.printCommand.printText("Password:");
         } else if (this.step === 2) {
             this.tries++;
-            try {
+            // below code should never give error, if it then cap check function fucker...
+            // try {
                 const response = await check(this.username, input);
-                if (!response.ok) {
-                    this.exit();
-                    throw new Error(`HTTP error! Status: ${response.status}`);
+                if (response?.detail) {
+                    this.cb.printCommand.printError(`[Error] ${response.detail}. You have ${3 - this.tries} attempts left.`);
+                    if (this.tries >= 3){
+                        this.cb.printCommand.printError("Too many wrong attempts");
+                        this.exit();
+                    }
+                    // else {
+                    //     this.exit();
+                    //     throw new Error(`HTTP Error, status code: ${response.status}`)
+                    // }
+                    return;
                 }
-                const data = await response.json();
-                if (data?.verification) {
-                    this.cb.printCommand.printSuccess(`${this.username} have been authenticated`);
-                    if (data?.token) this.AuthToken = data.token;
-                    this.cb.updateInputLine(this.username, "~/");
-                    this.exit();
-                }
-                else if (this.tries < 4) this.cb.printCommand.printWarning(`Incorrect username or password. You have ${4 - this.tries} attempts left.`);
-                else {
-                    this.cb.printCommand.printError("Too many wrong attempts");
-                    this.exit();
-                }
-            } catch (err) {
-                console.log(err);
-                this.cb.printCommand.printError("Wrong format of password, cannot parse it :(");
+                this.cb.printCommand.printSuccess(`${this.username} have been authenticated`);
+                if (response?.token) this.cb.setAuthToken(response.token);
+                // console.log(response.token);
+                this.cb.updateInputLine(this.username, "/");
                 this.exit();
-            }
+
+            // } catch (err) {
+            //     console.log(err);
+            //     this.cb.printCommand.printError("Something went wrong on server side :(");
+            //     this.exit();
+            // }
         }
     }
 
@@ -96,4 +126,4 @@ export default class loginModule extends shell {
         this.cb.setInputType('text');
         this.cb.showPrompt();
     }
-}
+};

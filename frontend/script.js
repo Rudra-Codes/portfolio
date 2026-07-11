@@ -1,7 +1,9 @@
 import loginModule from './shells/login.js';
+import signupModule, { VerifyModule } from './shells/signup.js';
 import printCommands from './printCommands.js';
 import { resumeLink } from './config.js';
 import CommandHistory from './chatHistory.js';
+import { backendAPI } from './config.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     const inputField = document.getElementById('cmd-input');
@@ -16,12 +18,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const lsOutputTemplate = document.getElementById('ls-output-template');
     const cmdNotFound = document.getElementById('tpl-error');
     const helpTemplate = document.getElementById('tpl-help');
+    const manTemplate = document.getElementById('tpl-man');
+
     let inRudraShell = false;
     let botEndpoint = '';
     let currUser = "user";
     let currentDirectory = "/";
     let commandRunning = false;
     let activeSession = null;
+    let authToken = null;
 
     const printCommand = new printCommands(terminalHistory, promptText);
     const commandHistory = new CommandHistory(50);
@@ -31,10 +36,13 @@ document.addEventListener('DOMContentLoaded', () => {
         hidePrompt: () => { promptText.style.display = 'none'; },
         showPrompt: () => { promptText.style.display = ''; },
         setInputType: (type) => { inputField.type = type; },
-        setActiveSession: (session) => activeSession = session
+        setActiveSession: (session) => activeSession = session,
+        setAuthToken: (token) => authToken = token
     };
 
     function updateInputLine(User = currUser, Directory = currentDirectory) {
+        currUser = User;
+        currentDirectory = Directory;
         inputLine.querySelector(".user").textContent = User;
         inputLine.querySelector(".path").textContent = Directory;
     }
@@ -81,7 +89,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const sudoCommands = {
         'login': new loginModule(terminalCallbacks),
-        // 'get-info': { call: runGetInfo }
+        'get-info': { call: runGetInfo, desc: 'Get details of the currently logged in user.' },
+        'signup': new signupModule(terminalCallbacks),
+        'verify-email': new VerifyModule(terminalCallbacks),
     }
     // Commands jo chal sakti
     const commands = {
@@ -99,7 +109,8 @@ document.addEventListener('DOMContentLoaded', () => {
         'cd': { call: runCd, desc: "Same as linux works, Change Directory" },
         'pwd': { call: runPwd, desc: "Same as linux works, know current absolute path" },
         'about': { call: runAbout, desc: "To view my resume" },
-        'sudo': { call: runSudo, desc: "This one is special, used to interact with backend, before executing anything use sudo login. See man for more info.", subcommands: Object.keys(sudoCommands) },
+        'sudo': { call: runSudo, desc: "This one is special, used to interact with backend, before executing anything use sudo login. See man for more info.", subcommands: Object.keys(sudoCommands), refSubCommands: sudoCommands },
+        'man': { call: runMan, desc: "To view more info about subcommands. Try with sudo :)." },
     };
     const cmd_list = Object.keys(commands);
 
@@ -121,6 +132,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     function getAbsolutePath(relativePath) {
+        if (!relativePath) return currentDirectory;
         if (relativePath[0] === '/') {
             return relativePath + (relativePath.slice(-1) === '/' ? '' : '/');
         }
@@ -129,7 +141,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!relativePath) return currentDirectory;
             return relativePath + (relativePath.slice(-1) === '/' ? '' : '/');
         }
-        if (!relativePath) return currentDirectory;
         return currentDirectory + relativePath + (relativePath.slice(-1) === '/' ? '' : '/');
     }
 
@@ -180,14 +191,14 @@ document.addEventListener('DOMContentLoaded', () => {
         terminalHistory.innerHTML = '';
     }
 
-    function runSudo(args) {
+    async function runSudo(args) {
         if (args.length === 0) {
             printCommand.printError("sudo: missing command");
             return;
         }
         const cmd = args[0];
         if (sudoCommands[cmd]) {
-            sudoCommands[cmd].call();
+            await sudoCommands[cmd].call(args.length > 1 ? args.slice(1) : null);
         } else {
             printCommand.printError(`sudo: ${cmd}: command not found`);
         }
@@ -199,7 +210,40 @@ document.addEventListener('DOMContentLoaded', () => {
         printCommand.printSuccess("Opened rudra's Resume in new tab");
         window.open(resumeLink, "_blank");
     }
-    // function runGetInfo()
+    async function runGetInfo() {
+        if (authToken === null) {
+            printCommand.printBoxed("You are not logged in");
+            return;
+        }
+        try {
+            let response = await fetch(`${backendAPI.endpoint}/get-user`, {
+                method: "GET",
+                headers: {
+                    Authorization: `Bearer ${authToken}`
+                },
+                signal: AbortSignal.timeout(backendAPI.timeout)
+            });
+            response = await response.json();
+            if (response?.detail) printCommand.printError(response.detail);
+            else printCommand.printBoxed(`You are logged in as ${response.username} and your role is ${response.role}.`);
+
+        } catch (err) {
+            console.log(err);
+            printCommand.printError("Something went wrong while connecting to bakcend.");
+        }
+    }
+
+    function runMan(args) {
+        if (args.length === 0 || !commands[args[0]]?.refSubCommands) {
+            printCommand.printError('command not found or does not have man pade currently.');
+        }
+        const template = manTemplate.content.cloneNode(true);
+        template.querySelector('ul').innerHTML = Object.entries(commands[args[0]].refSubCommands)
+            .map(([name, cmd]) =>
+                `<li><span class="cmd">${args[0]} ${name}</span> - ${cmd.desc}</li>`)
+            .join('\n');
+        terminalHistory.appendChild(template);
+    }
 
     window.updatePrompt = function () {
         if (inRudraShell) {
@@ -340,9 +384,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const cmdText = this.value.trim();
             // Clear input
             this.value = '';
-            commandHistory.push(cmdText);
             if (activeSession) await activeSession.handleInput(cmdText);
-            else executeCommand(cmdText);
+            else commandHistory.push(cmdText), executeCommand(cmdText);
             // printCommand.EchoCmd(cmdText);
             // } else if (cmdText !== '') {
             //     if (inRudraShell) {
